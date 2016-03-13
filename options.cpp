@@ -29,8 +29,29 @@ bool Options::parse(int argc, char** argv)
 	int		opt           (0);
 
 	//  decode options
-	while ((opt = getopt(argc, argv, "lr:s")) != -1) {
+	while ((opt = getopt(argc, argv, "d:e:i:lr:s")) != -1) {
 		switch (opt) {
+			case 'd':
+				if (*optarg == 0) {
+					printf("\x1B[31mPlease specify an image/video name!\033[0m\n");
+					return usage();
+				}
+				_imageNames[optarg] = optarg;
+				break;
+			case 'e':
+				if (*optarg == 0) {
+					printf("\x1B[31mPlease specify a link text!\033[0m\n");
+					return usage();
+				}
+				_excludes[optarg] = optarg;
+				break;
+			case 'i':
+				if (*optarg == 0) {
+					printf("\x1B[31mPlease specify a link text!\033[0m\n");
+					return usage();
+				}
+				_includes[optarg] = optarg;
+				break;
 			case 'l':
 				_showLinks = true;
 				break;
@@ -58,6 +79,9 @@ bool Options::usage()
 {
 	printf("\nUsage: offshore [options] TARGET URL\n"
 			"Download URL to local file.\n\n"
+			"  -d TEXT\tdownload images/movies containing TEXT in path (multiple occurancy possible)\n"
+			"  -e TEXT\texclude links containing TEXT (multiple occurancy possible)\n"
+			"  -i TEXT\tinclude links containing TEXT (multiple occurancy possible)\n"
 			"  -l\t\tshow all referenced links\n"
 			"  -r DEPTH\trecursive follow links upto given depth\n"
 			"  -s\t\tsimulate download\n"
