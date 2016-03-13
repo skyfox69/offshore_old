@@ -1,1 +1,4 @@
 nbproject
+*.swp
+*.o
+offshore
