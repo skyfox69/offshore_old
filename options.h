@@ -21,6 +21,7 @@ class Options
 		map<string, string>		_includes;
 		map<string, string>		_excludes;
 		map<string, string>		_imageNames;
+		string					_linkFileName;
 		unsigned char			_recurseDepth = 0;
 		bool					_showLinks    = false;
 		bool					_showImages   = false;

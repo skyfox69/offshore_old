@@ -30,7 +30,7 @@ bool Options::parse(int argc, char** argv)
 	int		opt           (0);
 
 	//  decode options
-	while ((opt = getopt(argc, argv, "d:D:e:E:hi:I:l:r:s")) != -1) {
+	while ((opt = getopt(argc, argv, "d:D:e:E:hi:I:l:r:sz:")) != -1) {
 		switch (opt) {
 			case 'd':
 				if (*optarg == 0) {
@@ -92,6 +92,13 @@ bool Options::parse(int argc, char** argv)
 			case 's':
 				_simulate = true;
 				break;
+			case 'z':
+				if (*optarg == 0) {
+					printf("\x1B[31mPlease specify a link definition file!\033[0m\n");
+					return usage();
+				}
+				_linkFileName = optarg;
+				break;
 			default:
 				return usage();
 		}  //  switch (opt)
@@ -140,6 +147,7 @@ bool Options::usage()
 			"  -ll\t\tshow all referenced links\n"
 			"  -r DEPTH\trecursive follow links upto given depth\n"
 			"  -s\t\tsimulate download\n"
+			"  -z FILE\tuse existing links-files defines within FILE\n"
 			"\n"
 		);
 
