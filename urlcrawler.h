@@ -29,6 +29,7 @@ class UrlCrawler
 		virtual bool				isValidImage(const string link);
 		virtual bool				isValidLink (const string link);
 		virtual	unsigned int		extractLinks(const string html, const unsigned char depth, vector<string>& myLinks);
+		virtual	unsigned int		extractIFrames(const string html, const unsigned char depth, vector<string>& myLinks);
 		virtual	bool				crawlHtmlRecursive(const string url, const string targetDirName, const unsigned char depth);
 
 	public:

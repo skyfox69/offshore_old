@@ -83,11 +83,13 @@ bool UrlCrawler::isValidLink(const string link)
 //-----------------------------------------------------------------------------
 unsigned int UrlCrawler::extractLinks(const string html, const unsigned char depth, vector<string>& myLinks)
 {
-	size_t		size    (html.size()+1);
-	char*		pBuffer (new char[size]);
-	char*		pStart  (pBuffer);
-	char*		pEnd    (nullptr);
+	size_t		size   (html.size()+1);
+	char*		pBuffer(new char[size]);
+	char*		pStart (pBuffer);
+	char*		pStartS(pBuffer);
+	char*		pEnd   (nullptr);
 	string		href;
+	char		match  ('\"');
 
 	memcpy(pBuffer, html.c_str(), size-1);
 	pBuffer[size-1] = 0;
@@ -100,13 +102,18 @@ unsigned int UrlCrawler::extractLinks(const string html, const unsigned char dep
 		}
 	}
 
+	//  get first href
+	pStartS = pStart;
+	pStart  = strstr(pStart, "href=\"");
+	if (pStart == nullptr) {
+		pStart = strstr(pStartS, "href='");
+		match = '\'';
+	}
+
 	//  get each href
-	while ((pStart = strstr(pStart, "href=\"")) != nullptr) {
+	while (pStart != nullptr) {
 		pStart += 6;
-		pEnd = strchr(pStart, '"');
-		if (pEnd == nullptr) {
-			pEnd = strchr(pStart, '\'');
-		}
+		pEnd  = strchr(pStart, match);
 		if (pEnd != nullptr) {
 			*pEnd = 0;
 			if (pEnd[-1] == '/') {
@@ -129,10 +136,84 @@ unsigned int UrlCrawler::extractLinks(const string html, const unsigned char dep
 				}
 			}
 
-			pStart = ++pEnd;
+			//  get next href
+			match  = '"';
+			pStart = strstr(++pEnd, "href=\"");
+			if (pStart == nullptr) {
+				pStart = strstr(pEnd, "href='");
+				match = '\'';
+			}
 
 		}  //  if (pEnd != nullptr)
 	}  //  while ((pStart = strstr(pStart, "href")) != nullptr)
+
+	delete[] pBuffer;
+
+	return _links.size();
+}
+
+//-----------------------------------------------------------------------------
+unsigned int UrlCrawler::extractIFrames(const string html, const unsigned char depth, vector<string>& myLinks)
+{
+	size_t		size   (html.size()+1);
+	char*		pBuffer(new char[size]);
+	char*		pStart (pBuffer);
+	char*		pStartS(pBuffer);
+	char*		pEnd   (nullptr);
+	char*		pEndS  (nullptr);
+	string		href;
+	char		match  ('\"');
+
+	memcpy(pBuffer, html.c_str(), size-1);
+	pBuffer[size-1] = 0;
+
+	//  ignore links within head section
+	if (!_pOptions->_parseHeader) {
+		pStart = strstr(pStart, "<body");
+		if (pStart == nullptr) {
+			return 0;
+		}
+	}
+
+	//  get first iframe
+	pStart = strstr(pStart, "<iframe");
+	while (pStart != nullptr) {
+		pStart += 7;
+		pEnd = strstr(pStart, "</iframe>");
+		if (pEnd != nullptr) {
+			*pEnd   = 0;
+			pStartS = pStart;
+			match   = '"';
+			pStartS = strstr(pStart, "src=\"");
+			if (pStartS == nullptr) {
+				pStartS = strstr(pStart, "src='");
+				match = '\'';
+			}
+
+			if (pStartS != nullptr) {
+				pStartS += 5;
+				pEndS = strchr(pStartS, match);
+				if (pEndS != nullptr) {
+					*pEndS = 0;
+					if (pEndS[-1] == '/') {
+						pEndS[-1] = 0;
+					}
+					href = pStartS;
+
+					if (isValidLink(href)) {
+						if (_links.count(href) <= 0) {
+							_links[href]._depth = depth;
+							myLinks.push_back(href);
+						}
+					}
+				}  //  if (pEndS != nullptr)
+			}  //  if (pStartS != nullptr)
+
+			pStart = pEnd + 9;
+		}  //  if (pEnd != nullptr)
+
+		pStart = strstr(pStart, "<iframe");
+	}  //  while (pStart != nullptr)
 
 	delete[] pBuffer;
 
@@ -150,7 +231,8 @@ bool UrlCrawler::crawlHtmlRecursive(const string url, const string targetDirName
 	fprintf(stderr, "size of %s: %ld\n", url.c_str(), html.size());
 
 	//  extract links
-	extractLinks(html, depth, myLinks);
+	extractLinks  (html, depth, myLinks);
+	extractIFrames(html, depth, myLinks);
 
 	//  recursive parse links
 	if (depth < _pOptions->_recurseDepth) {
