@@ -21,12 +21,15 @@ class Options
 		map<string, string>		_includes;
 		map<string, string>		_excludes;
 		map<string, string>		_imageNames;
-		string					_linkFileName;
+		string					_linkFileNameRead;
+		string					_linkFileNameWrite;
 		unsigned char			_recurseDepth = 0;
 		bool					_showLinks    = false;
 		bool					_showImages   = false;
 		bool					_simulate     = false;
 		bool					_parseHeader  = false;
+		bool					_includeCss   = false;
+		bool					_includeJs   = false;
 
 		virtual					~Options();
 		static	Options*		getInstance();

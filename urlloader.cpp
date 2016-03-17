@@ -1,6 +1,7 @@
 #include "urlloader.h"
 #include <curl/curl.h>
 #include <sstream>
+#include <fstream>
 
 //-----------------------------------------------------------------------------
 static size_t dataWrite(void* pBuf, size_t size, size_t nmemb, void* pUser)
@@ -78,4 +79,15 @@ string UrlLoader::readHtml(const string url)
 		oStream.str("");
 	}
 	return oStream.str();
+}
+
+//-----------------------------------------------------------------------------
+string UrlLoader::downloadImage(const string url, const string fileName)
+{
+	ofstream	oStream(fileName, ofstream::binary);
+
+	read(url, oStream);
+	oStream.flush();
+	oStream.close();
+	return fileName;
 }

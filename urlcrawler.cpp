@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <algorithm>
 #include <fstream>
+#include <sstream>
 #include <cstring>
 #include <limits.h>
 
@@ -22,10 +23,17 @@ UrlCrawler::~UrlCrawler()
 {}
 
 //-----------------------------------------------------------------------------
-bool UrlCrawler::isValidImage(const string link)
+bool UrlCrawler::isValidImage(string& link)
 {
 	const char*		pText  (link.c_str());
+	size_t			pos    (link.find("?"));
 	bool			isValid(false);
+
+	//  check for parameters
+	if (pos != string::npos) {
+		link  = link.substr(0, pos);
+		pText = link.c_str();
+	}
 
 	//  check on image
 	if (strlen(pText) > 4) {
@@ -48,7 +56,7 @@ bool UrlCrawler::isValidImage(const string link)
 }
 
 //-----------------------------------------------------------------------------
-bool UrlCrawler::isValidLink(const string link)
+bool UrlCrawler::isValidLink(string& link)
 {
 	bool	isValid (true);
 
@@ -77,6 +85,14 @@ bool UrlCrawler::isValidLink(const string link)
 	if (link.find("#") != string::npos) {
 		isValid = false;
 	}
+	//  css
+	if (!_pOptions->_includeCss && (link.find(".css") != string::npos)) {
+		isValid = false;
+	}
+	//  js
+	if (!_pOptions->_includeJs && (link.find(".js") != string::npos)) {
+		isValid = false;
+	}
 
 	return isValid;
 }
@@ -93,6 +109,7 @@ string UrlCrawler::unifyLink(const string link)
 	}
 
 	//  remove https://
+	pos = 0;
 	while ((pos = linkOut.find("https://", pos)) != string::npos) {
 		linkOut.replace(pos, 8, "");
 	}
@@ -101,22 +118,10 @@ string UrlCrawler::unifyLink(const string link)
 }
 
 //-----------------------------------------------------------------------------
-string UrlCrawler::getFileNameFromLink(const string link)
+string UrlCrawler::getFileNameFromLink(const string link, const bool isImage)
 {
 	const char*	pChar   (nullptr);
-	string		fileName(link);
-	size_t		pos     (0);
-
-	//  remove http://
-	while ((pos = fileName.find("http://", pos)) != string::npos) {
-		fileName.replace(pos, 7, "");
-	}
-
-	//  remove https://
-	pos = 0;
-	while ((pos = fileName.find("https://", pos)) != string::npos) {
-		fileName.replace(pos, 8, "");
-	}
+	string		fileName(unifyLink(link));
 
 	//  replace / with _
 	replace(fileName.begin(), fileName.end(), '/', '_');
@@ -128,7 +133,7 @@ string UrlCrawler::getFileNameFromLink(const string link)
 
 	//  append .html if not set
 	pChar = fileName.c_str() + fileName.size() - 5;
-	if (strcasecmp(pChar, ".html") != 0) {
+	if (!isImage && (strcasecmp(pChar, ".html") != 0)) {
 		fileName += ".html";
 	}
 
@@ -138,30 +143,96 @@ string UrlCrawler::getFileNameFromLink(const string link)
 //-----------------------------------------------------------------------------
 bool UrlCrawler::exchangeLinks()
 {
-	string	link;
-	string	fileName;
-	string	html;
+	string			link;
+	string			fileName;
+	string			html;
+	size_t			pos  (0);
+	unsigned int	count(0);
 
 	//  for each file
 	for (auto& entry : _links) {
 		link     = entry.first;
-		fileName = entry.second._fileName;
+		fileName = entry.second._fileNameIncDir;
 
-		ifstream	inFile(fileName, ifstream::binary);
+		if (!fileName.empty()) {
+			ifstream		inFile(fileName, ifstream::binary);
+			stringstream	sStream;
 
-		inFile >> html;
-		inFile.close();
+			fprintf(stderr, "processing: %s\n", fileName.c_str());
 
+			//  read original file
+			sStream << inFile.rdbuf();
+			inFile.close();
+			html = sStream.str();
 
+			//  for each link
+			for (auto& repEntry : _links) {
+				//  skip empty links
+				if (repEntry.second._originalLink.empty())		continue;
 
+				count = 0;
+				pos   = 0;
+				while ((pos = html.find((repEntry.second._originalLink + "\""), pos)) != string::npos) {
+					html.replace(pos, repEntry.second._originalLink.length(), repEntry.second._fileName);
+					pos += repEntry.second._fileName.length();
+					++count;
+				}
+				pos   = 0;
+				while ((pos = html.find((repEntry.second._originalLink + "'"), pos)) != string::npos) {
+					html.replace(pos, repEntry.second._originalLink.length(), repEntry.second._fileName);
+					pos += repEntry.second._fileName.length();
+					++count;
+				}
 
+				if (count > 0) {
+					fprintf(stderr, "L:  %02d x %s\n", count, repEntry.second._originalLink.c_str());
+				}
+			}  //  for (auto& repEntry : _links)
+
+			//  for each image
+			for (auto& repEntry : _images) {
+				//  skip empty links
+				if (repEntry.second._originalLink.empty())		continue;
+
+				count = 0;
+				pos   = 0;
+				while ((pos = html.find((repEntry.second._originalLink + "\""), pos)) != string::npos) {
+					html.replace(pos, repEntry.second._originalLink.length(), repEntry.second._fileName);
+					pos += repEntry.second._fileName.length();
+					++count;
+				}
+				pos   = 0;
+				while ((pos = html.find((repEntry.second._originalLink + "'"), pos)) != string::npos) {
+					html.replace(pos, repEntry.second._originalLink.length(), repEntry.second._fileName);
+					pos += repEntry.second._fileName.length();
+					++count;
+				}
+				pos   = 0;
+				while ((pos = html.find((repEntry.second._originalLink + "?"), pos)) != string::npos) {
+					html.replace(pos, repEntry.second._originalLink.length(), repEntry.second._fileName);
+					pos += repEntry.second._fileName.length();
+					++count;
+				}
+
+				if (count > 0) {
+					fprintf(stderr, "I:  %02d x %s\n", count, repEntry.second._originalLink.c_str());
+				}
+			}  //  for (auto& repEntry : _images)
+
+			//  write modified file
+			ofstream	outFile(fileName, ofstream::binary);
+
+			outFile.write(html.c_str(), html.size());
+			outFile.close();
+
+		}  //  if (!fileName.empty())
 	}  //  for (auto& link : _links)
 
 	return true;
 }
 
 //-----------------------------------------------------------------------------
-unsigned int UrlCrawler::extractLinks(const string html, const unsigned char depth, vector<string>& myLinks)
+unsigned int UrlCrawler::extractLinks(const string html, const unsigned char depth, const string tag, vector<string>& myLinks)
 {
 	size_t		size   (html.size()+1);
 	char*		pBuffer(new char[size]);
@@ -169,6 +240,8 @@ unsigned int UrlCrawler::extractLinks(const string html, const unsigned char dep
 	char*		pStartS(pBuffer);
 	char*		pEnd   (nullptr);
 	string		href;
+	string		hrefOrig;
+	string		sTag   (tag + "=\"");
 	char		match  ('\"');
 
 	memcpy(pBuffer, html.c_str(), size-1);
@@ -184,48 +257,57 @@ unsigned int UrlCrawler::extractLinks(const string html, const unsigned char dep
 
 	//  get first href
 	pStartS = pStart;
-	pStart  = strstr(pStart, "href=\"");
+	pStart  = strstr(pStart, sTag.c_str());
 	if (pStart == nullptr) {
-		pStart = strstr(pStartS, "href='");
+		sTag   = tag + "='";
+		pStart = strstr(pStartS, sTag.c_str());
 		match = '\'';
 	}
 
 	//  get each href
 	while (pStart != nullptr) {
-		pStart += 6;
+		pStart += sTag.size();
 		pEnd  = strchr(pStart, match);
 		if (pEnd != nullptr) {
-			*pEnd = 0;
+			*pEnd    = 0;
+			hrefOrig = pStart;
 			if (pEnd[-1] == '/') {
 				pEnd[-1] = 0;
 			}
-			href  = pStart;
+			href = pStart;
+
+			//sfprintf(stderr, "~~ %s\n~~ %s\n", hrefOrig.c_str(), href.c_str());
 
 			//  valid image
 			if (isValidImage(href)) {
 				if (_images.count(href) <= 0) {
-					_images[href]._fileName = href;
-					_images[href]._depth    = depth;
+					_images[href]._depth        = depth;
+					_images[href]._link         = href;
+					_images[href]._originalLink = href;
 				}
 			}
 			//  valid link
 			else if (isValidLink(href)) {
 				if (_links.count(href) <= 0) {
-					_links[href]._depth = depth;
+					_links[href]._depth        = depth;
+					_links[href]._link         = href;
+					_links[href]._originalLink = hrefOrig;
 					myLinks.push_back(href);
 				}
 			}
 
 			//  get next href
 			match  = '"';
-			pStart = strstr(++pEnd, "href=\"");
+			sTag = tag + "=\"";
+			pStart = strstr(++pEnd, sTag.c_str());
 			if (pStart == nullptr) {
-				pStart = strstr(pEnd, "href='");
+				sTag   = tag + "='";
+				pStart = strstr(pEnd, sTag.c_str());
 				match = '\'';
 			}
 
 		}  //  if (pEnd != nullptr)
-	}  //  while ((pStart = strstr(pStart, "href")) != nullptr)
+	}  //  while (pStart != nullptr)
 
 	delete[] pBuffer;
 
@@ -242,6 +324,7 @@ unsigned int UrlCrawler::extractIFrames(const string html, const unsigned char d
 	char*		pEnd   (nullptr);
 	char*		pEndS  (nullptr);
 	string		href;
+	string		hrefOrig;
 	char		match  ('\"');
 
 	memcpy(pBuffer, html.c_str(), size-1);
@@ -274,6 +357,7 @@ unsigned int UrlCrawler::extractIFrames(const string html, const unsigned char d
 				pStartS += 5;
 				pEndS = strchr(pStartS, match);
 				if (pEndS != nullptr) {
+					hrefOrig = pStartS;
 					*pEndS = 0;
 					if (pEndS[-1] == '/') {
 						pEndS[-1] = 0;
@@ -282,7 +366,9 @@ unsigned int UrlCrawler::extractIFrames(const string html, const unsigned char d
 
 					if (isValidLink(href)) {
 						if (_links.count(href) <= 0) {
-							_links[href]._depth = depth;
+							_links[href]._depth        = depth;
+							_links[href]._link         = href;
+							_links[href]._originalLink = hrefOrig;
 							myLinks.push_back(href);
 						}
 					}
@@ -312,10 +398,11 @@ bool UrlCrawler::crawlHtmlRecursive(const string url, const string targetDirName
 	if (!_pOptions->_simulate) {
 		//  generate file name
 		if (_links[url]._fileName.empty()) {
-			_links[url]._fileName = "./" + targetDirName + "/" + getFileNameFromLink(url);
+			_links[url]._fileName       = getFileNameFromLink(url);
+			_links[url]._fileNameIncDir = "./" + targetDirName + "/" + _links[url]._fileName;
 		}
 
-		ofstream	outFile(_links[url]._fileName, ofstream::binary);
+		ofstream	outFile(_links[url]._fileNameIncDir, ofstream::binary);
 
 		outFile.write(html.c_str(), html.size());
 		outFile.close();
@@ -323,8 +410,9 @@ bool UrlCrawler::crawlHtmlRecursive(const string url, const string targetDirName
 	fprintf(stderr, "size of %s: %ld\n", url.c_str(), html.size());
 
 	//  extract links
-	extractLinks  (html, depth, myLinks);
-	extractIFrames(html, depth, myLinks);
+	extractLinks  (html, depth, "href", myLinks);
+	extractLinks  (html, depth, "src", myLinks);
+	//extractIFrames(html, depth, myLinks);
 
 	//  recursive parse links
 	if (depth < _pOptions->_recurseDepth) {
@@ -345,7 +433,7 @@ bool UrlCrawler::crawlHtml(const string url, const string targetDirName)
 	_links.clear();
 	_images.clear();
 
-	if (_pOptions->_linkFileName.empty()) {
+	if (_pOptions->_linkFileNameRead.empty()) {
 		if (!_pOptions->_simulate) {
 			//  check for existing target
 			struct stat		st = {0};
@@ -357,13 +445,18 @@ bool UrlCrawler::crawlHtml(const string url, const string targetDirName)
 		}
 
 		//  insert origin link
-		_links[url]._depth    = 0;
-		_links[url]._fileName = "./" + targetDirName + "/index.html";
+		_links[url]._depth          = 0;
+		_links[url]._link           = url;
+		_links[url]._originalLink   = url;
+		_links[url]._fileName       = "index.html";
+		_links[url]._fileNameIncDir = "./" + targetDirName + "/index.html";
 
 		//  get links recursive (if wanted)
 		crawlHtmlRecursive(url, targetDirName, 0);
 
 		if (!_pOptions->_simulate) {
+			unsigned int	count(1);
+
 			//  get content from last iteration
 			for (auto& link : _links) {
 				if (link.second._fileName.empty()) {
@@ -374,40 +467,75 @@ bool UrlCrawler::crawlHtml(const string url, const string targetDirName)
 
 					//  generate file name
 					if (_links[link.first]._fileName.empty()) {
-						_links[link.first]._fileName = "./" + targetDirName + "/" + getFileNameFromLink(link.first);
+						_links[link.first]._fileName       = getFileNameFromLink(link.first);
+						_links[link.first]._fileNameIncDir = "./" + targetDirName + "/" + _links[link.first]._fileName;
 					}
 
-					ofstream	outFile(_links[link.first]._fileName, ofstream::binary);
+					ofstream	outFile(_links[link.first]._fileNameIncDir, ofstream::binary);
 
 					outFile.write(html.c_str(), html.size());
+					outFile.flush();
 					outFile.close();
 
 				}  //  if (link.second._fileName.empty())
 			}  //  for (auto& link : _links)
-		}  //  if (!_pOptions->_simulate)
-	} else {
-		ifstream	inFile(_pOptions->_linkFileName);
-		string		link;
-		string		fileName;
-		string		depth;
 
-		fprintf(stderr, "  reading links from %s\n", _pOptions->_linkFileName.c_str());
+			//  download images
+			for (auto& image : _images) {
+				if (image.second._fileName.empty()) {
+					//  generate file name
+					if (_images[image.first]._fileName.empty()) {
+						_images[image.first]._fileName       = getFileNameFromLink(image.first, true);
+						_images[image.first]._fileNameIncDir = "./" + targetDirName + "/" + _images[image.first]._fileName;
+					}
+
+					fprintf(stderr, "### (%d/%d) %s\n", count++, _images.size(), image.first.c_str());
+
+					//  download image
+					_pUrlLoader->downloadImage(image.first, _images[image.first]._fileNameIncDir);
+
+				}  //  if (image.second._fileName.empty())
+			}  //  for (auto& image : _images)
+		}  //  if (!_pOptions->_simulate)
+
+		//  write Links to file
+		if (!_pOptions->_linkFileNameWrite.empty()) {
+			ofstream	outFile(_pOptions->_linkFileNameWrite);
+
+			for (auto& entry : _links) {
+				outFile << "L," << entry.second << endl;
+			}
+			for (auto& entry : _images) {
+				outFile << "I," << entry.second << endl;
+			}
+
+			outFile.flush();
+			outFile.close();
+		}
+	} else {
+		UrlLink		newLink;
+		ifstream	inFile(_pOptions->_linkFileNameRead);
+		string		type;
+
+		fprintf(stderr, "  reading links from %s\n", _pOptions->_linkFileNameRead.c_str());
 
 		//  read file line by line
-		while (getline(inFile, depth, ',')) {
-			getline(inFile, link, ',');
-			getline(inFile, fileName);
+		while (getline(inFile, type, ',')) {
+			inFile >> newLink;
 
-			_links[link]._depth    = (unsigned char) atoi(depth.c_str());
-			_links[link]._fileName = "./" + targetDirName + "/" + fileName;
+			if (type == "L") {
+				_links[newLink._link] = newLink;
+			}
+			else if (type == "I") {
+				_images[newLink._link] = newLink;
+			}
 		}
-
 		inFile.close();
 	}
 
 	//  show links if set
 	if (_pOptions->_showLinks) {
-		fprintf(stderr, "\nfound links:\n");
+		fprintf(stderr, "\nfound links: (%d)\n", _links.size());
 		for (auto& link : _links) {
 			fprintf(stderr, "  %02d - %s\n", link.second._depth, link.first.c_str());
 		}
@@ -416,7 +544,7 @@ bool UrlCrawler::crawlHtml(const string url, const string targetDirName)
 
 	//  show images if set
 	if (_pOptions->_showImages) {
-		fprintf(stderr, "\nfound images:\n");
+		fprintf(stderr, "\nfound images: (%d)\n", _images.size());
 		for (auto& image : _images) {
 			fprintf(stderr, "  %02d - %s\n", image.second._depth, image.first.c_str());
 		}

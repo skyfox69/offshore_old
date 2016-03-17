@@ -20,5 +20,6 @@ class UrlLoader
 		static	UrlLoader*	getInstance();
 
 		virtual	string		readHtml(const string url);
+		virtual	string		downloadImage(const string url, const string fileName);
 };
 #endif  //  URLLOADER_H

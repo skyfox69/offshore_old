@@ -30,8 +30,11 @@ bool Options::parse(int argc, char** argv)
 	int		opt           (0);
 
 	//  decode options
-	while ((opt = getopt(argc, argv, "d:D:e:E:hi:I:l:r:sz:")) != -1) {
+	while ((opt = getopt(argc, argv, "cd:D:e:E:hi:I:jl:r:sz:Z:")) != -1) {
 		switch (opt) {
+			case 'c':
+				_includeCss = true;
+				break;
 			case 'd':
 				if (*optarg == 0) {
 					printf("\x1B[31mPlease specify an image/video name!\033[0m\n");
@@ -77,6 +80,9 @@ bool Options::parse(int argc, char** argv)
 				}
 				parseNameFile(_includes, optarg);
 				break;
+			case 'j':
+				_includeJs = true;
+				break;
 			case 'l':
 				if (*optarg == 'l') {
 					_showLinks = true;
@@ -97,7 +103,14 @@ bool Options::parse(int argc, char** argv)
 					printf("\x1B[31mPlease specify a link definition file!\033[0m\n");
 					return usage();
 				}
-				_linkFileName = optarg;
+				_linkFileNameRead = optarg;
+				break;
+			case 'Z':
+				if (*optarg == 0) {
+					printf("\x1B[31mPlease specify a link definition file!\033[0m\n");
+					return usage();
+				}
+				_linkFileNameWrite = optarg;
 				break;
 			default:
 				return usage();
@@ -136,6 +149,7 @@ bool Options::usage()
 {
 	printf("\nUsage: offshore [options] TARGET URL\n"
 			"Download URL to local file.\n\n"
+			"  -c\t\tinclude CSS files\n"
 			"  -d TEXT\tdownload images/movies containing TEXT in path (multiple occurancy possible)\n"
 			"  -D FILE\tdownload images/movies containing texts defined in FILE\n"
 			"  -e TEXT\texclude links containing TEXT (multiple occurancy possible)\n"
@@ -143,11 +157,13 @@ bool Options::usage()
 			"  -h\t\tconsider links in page header (default: false)\n"
 			"  -i TEXT\tinclude links containing TEXT (multiple occurancy possible)\n"
 			"  -I FILE\tinclude links containing texts defined in FILE\n"
+			"  -j\t\tinclude JavaScript files\n"
 			"  -li\t\tshow all referenced images\n"
 			"  -ll\t\tshow all referenced links\n"
 			"  -r DEPTH\trecursive follow links upto given depth\n"
 			"  -s\t\tsimulate download\n"
 			"  -z FILE\tuse existing links-files defines within FILE\n"
+			"  -Z FILE\twrite links-files defines to FILE\n"
 			"\n"
 		);
 
