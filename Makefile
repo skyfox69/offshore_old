@@ -18,6 +18,7 @@ SRC = main.cpp \
       options.cpp \
       urlloader.cpp \
       urlcrawler.cpp \
+      urllink.cpp \
 
 OBJ = ${SRC:%.cpp=%.o}
 
